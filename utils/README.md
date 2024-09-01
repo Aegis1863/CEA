@@ -1,0 +1,4 @@
+- segment_tree.py 是rainbow_DQN用的
+- common.utils 是除sumo和highway以外环境使用的工具包
+- STA.py 是利用 STA 模型
+- train_sta.py 用于训练 STA 模型，命令行执行时请勿以 utils 为根目录

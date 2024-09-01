@@ -1,0 +1,10 @@
+<configuration>
+    <input>
+        <net-file value="big-intersection.net.xml"/>
+        <route-files value="big-intersection.rou.xml"/>
+    </input>
+    <time>
+        <begin value="0"/>
+        <end value="100000"/>
+    </time>
+</configuration>
