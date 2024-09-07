@@ -20,8 +20,8 @@ class CVAE(nn.Module):
         self.fc3 = nn.Linear(latent_dim + condition_dim, 128)
         self.fc4 = nn.Linear(128, input_dim)
         self.latent_dim = latent_dim
-        self.condition_dim = condition_dim  # 就是动作空间
-        self.quality = 0  # 轮廓系数
+        self.condition_dim = condition_dim  # action dim
+        self.quality = 0  # Silhouette Coefficient
         self.pic_num = 0
 
     def encode(self, x, c):
@@ -43,8 +43,9 @@ class CVAE(nn.Module):
         return self.decode(z, c), mu, logvar
     
     def inference(self, c, the_device=None):
-        '''直接根据条件生成结果
-        - c: 条件, 离散动作空间中应该是one-hot, 连续动作空间单值即可
+        '''Generate results directly based on conditions
+        ---
+        - c: Condition, it should be one-hot in discrete action space and single value in continuous action space
         '''
         device = the_device if the_device else ('cuda' if torch.cuda.is_available() else 'cpu')
         with torch.no_grad():
@@ -54,17 +55,18 @@ class CVAE(nn.Module):
         return generated
     
     def generate_test(self, batch, action_space, save_path=None, action_type='discrete'):
-        '''生成一些条件进行生成，返回生成数据的轮廓系数 
-        - batch: 生成批次，建议32
-        - action_space: 动作空间，假如是离散动作，写可选动作个数，如果是连续动作，传入动作界限：[下界，上界]
-        - save_path: 图片路径，默认是None，表示不保存生成图
-        - action_type: 动作空间类型，离散 discrete, 连续 continous
+        '''Generate some conditions for generation and return the silhouette coefficient of the generated data
+        ---
+        - batch: batch size
+        - action_space: Action space, if it is a discrete action, write the number of optional actions, if it is a continuous action, pass in the action limit: [lower bound, upper bound]
+        - save_path: Image path, the default is None, which means that the generated image will not be saved
+        - action_type: Action space type: discrete or continous
         '''
         
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if action_type == 'discrete':
             action_space = int(action_space)
-            # (batch // action_space) 表示每个动作生成多少个
+            # (batch // action_space) Indicates how many each action generates
             conditions = torch.tensor([[i] * (batch // action_space) for i in range(action_space)]).view(-1)
             conditions = torch.eye(action_space)[conditions].to(device)
         elif isinstance(action_space, tuple):
@@ -76,7 +78,7 @@ class CVAE(nn.Module):
             sample = torch.randn(conditions.shape[0], self.latent_dim).to(device)
             generated = self.decode(sample, conditions).cpu()
             
-        quality = silhouette_score(generated, [f"({x.item()}, {y.item()})" for x, y in conditions])  # 轮廓系数
+        quality = silhouette_score(generated, [f"({x.item()}, {y.item()})" for x, y in conditions])
         self.quality = quality
         if save_path and self.quality < 0.8:
             os.makedirs(save_path) if not os.path.exists(save_path) else None
@@ -98,12 +100,12 @@ def cvae_train(model, device, diff_state:torch.tensor, action:torch.tensor,
                optimizer: object, test_and_feedback=False, batch_size=32, 
                action_type='discrete', action_scope=None):
     '''
-    model: cvae模型
-    diff_state: 差分状态， diff_state = state[1:, 5:] - state[:-1, 5:]
-    action: 动作，必须是 one-hot 形式
-    optimizer: 优化器，比如 torch.optim.Adam
-    test_and_feedback: 是否给反馈，默认False
-    batch_size: 在线训练时每次训练的数据量比较小的时候，批次大小不建议给大
+    model: cvae
+    diff_state: diff_state = state[1:, 5:] - state[:-1, 5:]
+    action: action, one-hot or a value
+    optimizer: torch.optim.Adam
+    test_and_feedback: feedback, False
+    batch_size: suggest 32
     '''
     if not isinstance(diff_state, torch.Tensor):
         diff_state = torch.tensor(diff_state)
@@ -123,11 +125,10 @@ def cvae_train(model, device, diff_state:torch.tensor, action:torch.tensor,
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         return train_loader,test_loader
     
-    # 整理数据
     train_loader, test_loader = prepare_data()
-    # 训练
     model.train()
     train_loss = 0
+    # train
     for state, action in train_loader:
         state, action = state.to(device), action.to(device)
         optimizer.zero_grad()
@@ -140,7 +141,7 @@ def cvae_train(model, device, diff_state:torch.tensor, action:torch.tensor,
         loss.backward()
         train_loss = loss.item()
         optimizer.step()
-    # 测试
+    # test
     if test_and_feedback:
         model.eval()
         test_loss = 0
@@ -158,12 +159,12 @@ def cvae_train(model, device, diff_state:torch.tensor, action:torch.tensor,
 if __name__ == '__main__':
     
     # ------- Notice -------
-    #   最好不要在这里训练，训练参考主目录中的train_sta.py
+    #   It is best not to train here. For training, refer to train_sta.py in the main directory.
     # ----------------------
     
-    mission = 'sumo'  # ! 任务
-    state, kind = torch.load(f'data/buffer/{mission}/Buffer_of_expert.pt'), 'expert'  # ! 专家数据, 10000
-    # state, kind = torch.load(f'data/buffer/{mission}/Buffer_of_regular.pt'), 'regular'  # ! 业余数据, 240000
+    mission = 'sumo'
+    state, kind = torch.load(f'data/buffer/{mission}/Buffer_of_expert.pt'), 'expert'
+    # state, kind = torch.load(f'data/buffer/{mission}/Buffer_of_regular.pt'), 'regular'
 
     action = state[1:, :4]
     diff_state = state[1:, 5:] - state[:-1, 5:]

@@ -41,20 +41,19 @@ def save_DQN_data(replay_buffer, return_list, time_list, pool_list,
         "replay_buffer": replay_buffer,
     }, ckpt_path)
 
-    # 绘图数据存档
     save_plot_data(return_list, time_list, seed_list, ckpt_path, seed, pool_list)
 
 def save_plot_data(return_list, time_list, seed_list, ckpt_path, seed, pool_size=None):
-    system_type = sys.platform  # 操作系统标识
+    system_type = sys.platform
     # ckpt/SAC/big-intersection_42_win32.pt
     mission_name = ckpt_path.split('/')[1]
-    alg_name = ckpt_path.split('/')[2]  # 在本项目路径命名中，第二个是算法名
+    alg_name = ckpt_path.split('/')[2]
     file_path = f"data/plot_data/{mission_name}/{alg_name}"  # data/plot_data/highway/SAC/
-    if not os.path.exists(file_path):  # 路径不存在时创建
+    if not os.path.exists(file_path):
         os.makedirs(file_path)
     log_path = f"{file_path}/{seed}_{system_type}.csv"
     return_save = pd.DataFrame()
-    return_save["Algorithm"] = [alg_name] * len(return_list)  # 算法名称
+    return_save["Algorithm"] = [alg_name] * len(return_list)
     return_save["Seed"] = seed_list
     return_save["Return"] = return_list
     if pool_size:
@@ -70,12 +69,10 @@ def counterfactual_exp_expand(replay_buffer, sta, beta, action_space_size, dista
     action_space_size: 动作空间大小
     distance_threshold: 经验差距阈值，差距太大的匹配经验被放弃
     '''
-    # 抽样 batch_size 组真实经验
     samples = replay_buffer.sample_batch(beta)
     b_s, b_ns, b_a, b_r, b_d = samples['obs'], samples['next_obs'], samples['acts'], samples['rews'], samples['done']
     b_s, b_ns, b_a, b_r, b_d = [torch.tensor(i) for i in [b_s, b_ns, b_a, b_r, b_d]]
     
-    # 生成反事实动作和其独热向量表示
     counterfactual_actions = []
     for a in b_a:
         counterfactual_actions.append([i for i in range(action_space_size) if i != a])
@@ -84,28 +81,18 @@ def counterfactual_exp_expand(replay_buffer, sta, beta, action_space_size, dista
     one_hot_cf_actions = torch.nn.functional.one_hot(
         counterfactual_actions, num_classes=action_space_size)
 
-    # 生成反事实状态转移向量
     diff_state = sta.inference(one_hot_cf_actions)
 
-    # 扩展状态以匹配反事实状态转移
     expand_b_s = b_s.repeat_interleave(action_space_size - 1, dim=0)
     b_ns_prime = expand_b_s + diff_state
 
-    # ? 读取所有真实经验
     all_samples = replay_buffer.retrieve_all_experiences()
     all_ns, all_r = torch.tensor(all_samples['next_obs']), torch.tensor(all_samples['rews'])
     
-    # 将真实经验和虚拟经验拼接成向量
-    # real_exp = torch.cat((all_s, torch.nn.functional.one_hot(all_a, num_classes=action_space_size), all_ns), dim=1)
-    # fake_exp = torch.cat((expand_b_s, one_hot_actions, b_ns_prime), dim=1)
-    
-    # 计算虚拟经验与真实经验的距离并找到最匹配的真实经验
-    # distances = torch.cdist(fake_exp, real_exp)
     distances = torch.cdist(b_ns_prime, all_ns)
     min_indices = torch.argmin(distances, dim=1)
     min_distances = distances[torch.arange(distances.size(0)), min_indices]
 
-    # 筛选出距离小于阈值的虚拟经验
     close_matches = min_distances < distance_threshold
     valid_min_indices = min_indices[close_matches]
     
@@ -113,9 +100,7 @@ def counterfactual_exp_expand(replay_buffer, sta, beta, action_space_size, dista
     valid_fake_r = all_r[valid_min_indices].numpy()
     valid_fake_a = one_hot_cf_actions[close_matches].argmax(dim=1).numpy()
     valid_fake_ns = b_ns_prime[close_matches].numpy()
-    # 虚拟经验的其他标记
     b_d_prime = np.zeros_like(valid_fake_r)
-    # 更新经验池
     for s, a, r, ns, d in zip(valid_fake_s, valid_fake_a, valid_fake_r, valid_fake_ns, b_d_prime):
         replay_buffer.store(s, a, r, ns, d)
     return replay_buffer
@@ -706,8 +691,7 @@ class DQNAgent:
         scores = []
         time_list = []
         seed_list = []
-        pool_list = []  # 经验池大小
-        best_score = -1e10  # 初始化最佳分数
+        pool_list = []
         score = 0
         with tqdm(total=num_frames, mininterval=100, ncols=100) as pbar:
             for frame_idx in range(1, num_frames + 1):

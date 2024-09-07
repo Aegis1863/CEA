@@ -5,11 +5,11 @@ import gymnasium as gym
 from DDPG import *
 import argparse
 
-parser = argparse.ArgumentParser(description='Train_STA 任务')
-parser.add_argument('-t', '--task', default="lunar", type=str, help='任务名称')
-parser.add_argument('-l', '--lr', default=1e-4, type=float, help='模型学习率')
-parser.add_argument('-e', '--epochs', default=150, type=int, help='训练轮次')
-parser.add_argument('-b', '--batch_size', default=128, type=int, help='批量大小')
+parser = argparse.ArgumentParser(description='Train_STA task')
+parser.add_argument('-t', '--task', default="lunar", type=str, help='task name')
+parser.add_argument('-l', '--lr', default=1e-4, type=float, help='learning rate')
+parser.add_argument('-e', '--epochs', default=150, type=int, help='training epochs')
+parser.add_argument('-b', '--batch_size', default=128, type=int, help='batch size')
 args = parser.parse_args()
 
 
@@ -32,11 +32,11 @@ else:
     action_scope = None
     
 # ==========
-# 初始化空列表用于存储拼接结果
+# init
 diff_state = []
 actions = []
 
-# 依次读取文件并拼接
+# sequential read and concatenate
 for i in os.listdir(f'ckpt/{args.task}/DDPG/'):
     file_name = f'ckpt/{args.task}/DDPG/{i}'
     buffer = torch.load(file_name)['replay_buffer']
@@ -44,7 +44,6 @@ for i in os.listdir(f'ckpt/{args.task}/DDPG/'):
     diff_state.append(diff_s)
     actions.append(buffer.actions_buf)
 
-# 将列表中的数组纵向拼接为单个ndarray
 diff_states = np.concatenate(diff_state, axis=0)
 actions = np.concatenate(actions, axis=0)
 
@@ -55,12 +54,12 @@ latent_dim = input_dim
 
 fig_path = f'image/VAE/{args.task}/bs_{args.batch_size}/'
 
-# 训练
+# training
 model = CVAE(input_dim, condition_dim, latent_dim).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 quality = []
 loss_list = []
-print(f'[ 开始训练 STA 模型, 任务: {args.task}, epochs: {args.epochs}, batch_size: {args.batch_size} ]')
+print(f'[ Start STA training, Task: {args.task}, Epochs: {args.epochs}, Batch_size: {args.batch_size} ]')
 for epoch in trange(args.epochs, ncols=70):
     loss = cvae_train(model, device, diff_states, actions, optimizer, False, 
                       args.batch_size, action_type, action_scope)

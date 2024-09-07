@@ -18,17 +18,15 @@ from utils.segment_tree import SumSegmentTree, MinSegmentTree
 from typing import List, Dict
 
 def read_ckp(ckp_path: str, agent: object, model_name: str, buffer_size: int = 0):
-    """读取已有数据, 如果报错, 可以先删除存档"""
     path = "/".join(ckp_path.split('/')[:-1])
-    if not os.path.exists(path):  # 检查路径在不在
+    if not os.path.exists(path):
         os.makedirs(path)
-    if os.path.exists(ckp_path):  # 检查文件在不在
+    if os.path.exists(ckp_path):
         print('\033[34m[ checkpoint ]\033[0m 读取已有模型权重和训练数据...')
         checkpoint = torch.load(ckp_path)
         s_epoch = checkpoint["epoch"]
         s_episode = checkpoint["episode"]
 
-        # 区分算法
         if 'DQN' in model_name:
             agent.q_net.load_state_dict(checkpoint["best_weight"])
         elif 'PPO' in model_name:
@@ -49,7 +47,7 @@ def read_ckp(ckp_path: str, agent: object, model_name: str, buffer_size: int = 0
             return s_epoch, s_episode, return_list, time_list, seed_list, replay_buffer
         return s_epoch, s_episode, return_list, time_list, seed_list
     else:
-        print('\n\033[34m[ checkpoint ]\033[0m 全新训练...')
+        print('\n\033[34m[ checkpoint ]\033[0m brand new train...')
         if buffer_size:
             return 0, 0, [], [], [], ReplayBuffer(buffer_size)
         return 0, 0, [], [], []
@@ -59,7 +57,7 @@ def compute_advantage(gamma, lmbda, td_delta):
     td_delta = td_delta.detach().numpy()
     advantage_list = []
     advantage = 0.0
-    for delta in td_delta[::-1]:  # 逆向折算
+    for delta in td_delta[::-1]:
         advantage = gamma * lmbda * advantage + delta
         advantage_list.append(advantage)
     advantage_list.reverse()
@@ -69,16 +67,16 @@ def compute_advantage(gamma, lmbda, td_delta):
 
 
 def save_plot_data(return_list, time_list, seed_list, ckpt_path, seed, pool_list=None):
-    system_type = sys.platform  # 操作系统标识
+    system_type = sys.platform
     # ckpt/SAC/big-intersection_42_win32.pt
     mission_name = ckpt_path.split('/')[1]
-    alg_name = ckpt_path.split('/')[2]  # 在本项目路径命名中，第二个是算法名
+    alg_name = ckpt_path.split('/')[2]
     file_path = f"data/plot_data/{mission_name}/{alg_name}"  # data/plot_data/highway/SAC/
-    if not os.path.exists(file_path):  # 路径不存在时创建
+    if not os.path.exists(file_path):
         os.makedirs(file_path)
     log_path = f"{file_path}/{seed}_{system_type}.csv"
     return_save = pd.DataFrame()
-    return_save["Algorithm"] = [alg_name] * len(return_list)  # 算法名称
+    return_save["Algorithm"] = [alg_name] * len(return_list)
     return_save["Seed"] = seed_list
     return_save["Return"] = return_list
     if pool_list:
@@ -102,10 +100,10 @@ def train_PPO_agent(
     ckpt_path: str,
 ):
     """
-    同策略, 没有经验池, 仅限演员评论员框架
+    For PPO
     """
     start_time = time.time()
-    best_score = -1e10  # 初始分数
+    best_score = -1e10
     return_list = [] if not return_list else return_list
     for epoch in range(s_epoch, total_epochs):
         for episode in range(s_episode, total_episodes):
@@ -161,7 +159,7 @@ def train_PPO_agent(
     agent.actor.load_state_dict(actor_best_weight)
     agent.critic.load_state_dict(critic_best_weight)
     total_time = time.time() - start_time
-    print(f"\033[32m[ 总耗时 ]\033[0m {(total_time / 60):.2f}分钟")
+    print(f"\033[32m[ Total time ]\033[0m {(total_time / 60):.2f} min")
     # 如果检查点保存了回报列表, 可以不返回return_list
     return return_list, total_time // 60
 
@@ -259,7 +257,7 @@ def train_SAC_agent(
     agent.critic_1.load_state_dict(critic_1_best_weight)
     agent.critic_2.load_state_dict(critic_2_best_weight)
     total_time = (time.time() - start_time) // 60
-    print("\033[32m[ 总耗时 ]\033[0m %d分钟" % total_time)
+    print("\033[32m[ Total time ]\033[0m %d分钟" % total_time)
     return return_list, total_time
 
 def save_SAC_data(writer, replay_buffer, return_list, pool_list, time_list, 
@@ -311,7 +309,7 @@ def train_DDPG_agent(
     ckpt_path: str,
 ):
     """
-    异策略
+    For DDPG
     """
     def save_data():
         system_type = sys.platform
@@ -345,7 +343,7 @@ def train_DDPG_agent(
     seed_list = []
     pool_list = []
     start_time = time.time()
-    best_score = -1e10  # 初始分数
+    best_score = -1e10
     for epoch in range(s_epoch, total_epochs):
         for episode in range(s_episode, total_episodes):
             episode_begin_time = time.time()
@@ -360,7 +358,7 @@ def train_DDPG_agent(
                 replay_buffer.add(state, action, reward, next_state, done, truncated)
                 state = next_state
                 episode_return += reward
-                if replay_buffer.size() > minimal_size:  # 确保先收集到一定量的数据再采样
+                if replay_buffer.size() > minimal_size:
                     b_s, b_a, b_r, b_ns, b_d, b_t = replay_buffer.sample(batch_size)
                     transition_dict = {
                         "states": b_s, "actions": b_a, "next_states": b_ns,
@@ -376,7 +374,7 @@ def train_DDPG_agent(
                 actor_best_weight = agent.actor.state_dict()
                 critic_best_weight = agent.critic.state_dict()
                 best_score = episode_return
-            if writer > 0:  # 存档
+            if writer > 0:
                 save_data()
                 
             episode_time = (time.time() - episode_begin_time) // 60
@@ -388,7 +386,7 @@ def train_DDPG_agent(
     agent.actor.load_state_dict(actor_best_weight)
     agent.critic.load_state_dict(critic_best_weight)
     total_time = (time.time() - start_time) // 60
-    print("\033[32m[ 总耗时 ]\033[0m %d分钟" % total_time)
+    print("\033[32m[ Total time ]\033[0m %d分钟" % total_time)
     return return_list, total_time
 
 
@@ -411,8 +409,7 @@ def train_DQN(
         ckpt_path: str,):
     start_time = time.time()
     episode_time = time.time()
-    # fake_pool = ReplayBuffer(replay_buffer.capacity)
-    best_score = -1e10  # 初始化最佳分数
+    best_score = -1e10
     return_list = [] if not return_list else return_list
     for epoch in range(s_epoch, total_epoch):
         for episode in range(s_episode, total_episodes):
@@ -440,10 +437,9 @@ def train_DQN(
             return_list.append(episode_return)
             time_list.append(time.strftime('%m-%d %H:%M:%S', time.localtime()))
             seed_list.append(seed)
-            # 调整epsilon
-            # ! total_control_point=0.3 表示在整个训练的 0.3 处模型取得完全控制
+            # adjust epsilon
             agent.epsilon = max(-(total_episodes*total_control_point)**(-2)*episode**2+1, 0.01)
-            # 保存检查点
+            # checkpoint
             save_DQN_data(writer, replay_buffer, return_list, time_list, 
                           seed_list, ckpt_path, epoch, episode, agent.epsilon,
                           best_weight, seed)
@@ -454,9 +450,9 @@ def train_DQN(
                 episode_time = time.time()
             s_episode = 0
     env.close()
-    agent.q_net.load_state_dict(best_weight)  # 应用最佳权重
+    agent.q_net.load_state_dict(best_weight)  # apply best weights
     total_time = (time.time() - start_time) // 60
-    print("\033[32m[ 总耗时 ]\033[0m %d分钟" % total_time)
+    print("\033[32m[ Total time ]\033[0m %d min" % total_time)
     return return_list, total_time
 
 def sample_exp(agent, replay_buffer, batch_size):
@@ -465,10 +461,10 @@ def sample_exp(agent, replay_buffer, batch_size):
         s = torch.tensor(vae_sample[0])
         a = torch.tensor(vae_sample[1])
         ns = torch.tensor(vae_sample[3])
-        if agent.sta.quality < 0.7:  # 在线训练
+        if agent.sta.quality < 0.7:
             vae_batch = max(s.shape[0] // 600, 1)
-            agent.train_cvae(s, a, ns, False, vae_batch)  # 训练 vae
-            quality = agent.sta.generate_test(32, len(a.unique()))  # 当前模型生成图像的分类质量
+            agent.train_cvae(s, a, ns, False, vae_batch)
+            quality = agent.sta.generate_test(32, len(a.unique()))
         if agent.sta.quality > 0.3 and replay_buffer.size() > 2000:
             return counterfactual_exp_expand(replay_buffer, agent.sta, batch_size, len(a.unique()), agent.distance_threshold)
         else:
@@ -479,13 +475,11 @@ def sample_exp(agent, replay_buffer, batch_size):
 def save_DQN_data(writer, replay_buffer, return_list, time_list, 
                   seed_list, ckpt_path, epoch, episode, epsilon,
                   best_weight, seed):
-    # wandb 存档
     if writer > 1:
         wandb.log({
             "_return_list": return_list[-1],
             "pool_size": replay_buffer.size(),
             })
-    # 训练权重存档
     torch.save({
         'epoch': epoch,
         'episode': episode,
@@ -497,12 +491,10 @@ def save_DQN_data(writer, replay_buffer, return_list, time_list,
         "replay_buffer": replay_buffer,
     }, ckpt_path)
 
-    # 绘图数据存档
     save_plot_data(return_list, time_list, seed_list, ckpt_path, seed)
 
 
 class ReplayBuffer:
-    """异策略的经验缓存"""
 
     def __init__(self, capacity: int):
         self.capacity = capacity
@@ -533,19 +525,16 @@ class ReplayBuffer:
     
 def counterfactual_exp_expand(replay_buffer, sta, batch_size, action_space_size, distance_threshold):
     '''
-    replay_buffer: 经验池
+    replay_buffer: exp pool
     sta: cvae
-    batch_size: 抽多少经验
-    action_space_size: 动作空间大小
-    distance_threshold: 经验差距阈值，差距太大的匹配经验被放弃
+    batch_size: batch size
+    action_space_size: action space dim
+    distance_threshold: threshold
     '''
-    # 抽样batch_size组真实经验
     b_s, b_a, b_r, b_ns, b_d, b_t = [torch.tensor(i) for i in replay_buffer.sample(batch_size)]
     
-    # 总动作空间大小
     action_space_size = 5
 
-    # 生成反事实动作和其独热向量表示
     counterfactual_actions = []
     for a in b_a:
         counterfactual_actions.append([i for i in range(action_space_size) if i != a])
@@ -553,27 +542,17 @@ def counterfactual_exp_expand(replay_buffer, sta, batch_size, action_space_size,
 
     one_hot_cf_actions = torch.nn.functional.one_hot(counterfactual_actions, num_classes=action_space_size)
 
-    # 生成反事实状态转移向量
     diff_state = sta.inference(one_hot_cf_actions)
 
-    # 扩展状态以匹配反事实状态转移
     expand_b_s = b_s.repeat_interleave(action_space_size - 1, dim=0)
     b_ns_prime = expand_b_s + diff_state
 
-    # 读取所有真实经验
     all_s, all_a, all_r, all_ns, all_d, all_t = [torch.tensor(i) for i in replay_buffer.return_all_samples()]
 
-    # 将真实经验和虚拟经验拼接成向量
-    # real_exp = torch.cat((all_s, torch.nn.functional.one_hot(all_a, num_classes=action_space_size), all_ns), dim=1)
-    # fake_exp = torch.cat((expand_b_s, one_hot_actions, b_ns_prime), dim=1)
-    
-    # 计算虚拟经验与真实经验的距离并找到最匹配的真实经验
-    # distances = torch.cdist(fake_exp, real_exp)
     distances = torch.cdist(b_ns_prime, all_ns)
     min_indices = torch.argmin(distances, dim=1)
     min_distances = distances[torch.arange(distances.size(0)), min_indices]
 
-    # 筛选出距离小于阈值的虚拟经验
     close_matches = min_distances < distance_threshold
     valid_min_indices = min_indices[close_matches]
     
@@ -582,11 +561,9 @@ def counterfactual_exp_expand(replay_buffer, sta, batch_size, action_space_size,
     valid_fake_a = one_hot_cf_actions[close_matches].argmax(dim=1)
     valid_fake_ns = b_ns_prime[close_matches]
     
-    # 虚拟经验的其他标记
     b_d_prime = torch.zeros_like(valid_fake_r, dtype=torch.bool)
     b_t_prime = torch.zeros_like(valid_fake_r, dtype=torch.bool)
 
-    # 组合虚拟经验与真实经验
     augmented_s = torch.cat((b_s, valid_fake_s), dim=0)
     augmented_a = torch.cat((b_a, valid_fake_a), dim=0)
     augmented_r = torch.cat((b_r, valid_fake_r), dim=0)

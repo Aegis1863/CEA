@@ -27,7 +27,7 @@ import argparse
 import warnings
 warnings.filterwarnings('ignore')
 
-parser = argparse.ArgumentParser(description='DQN 任务')
+parser = argparse.ArgumentParser(description='DQN task')
 parser.add_argument('--model_name', default="highway_RDQN", type=str, help='模型名称, 任务_模型')
 parser.add_argument('--symbol', default='Normal', type=str, help='特殊唯一标识')
 parser.add_argument('--sta', action="store_true", help='是否利用sta辅助')
@@ -99,30 +99,19 @@ def counterfactual_exp_expand(replay_buffer, sta, batch_size, action_space_size,
     one_hot_cf_actions = torch.nn.functional.one_hot(
         counterfactual_actions, num_classes=action_space_size)
 
-    # 生成反事实状态转移向量
     diff_state = sta.inference(one_hot_cf_actions)
 
-    # 扩展状态以匹配反事实状态转移
     expand_b_s = b_s.repeat_interleave(action_space_size - 1, dim=0)
     b_ns_prime = expand_b_s + diff_state
 
-    # 读取所有真实经验
     all_samples = replay_buffer.retrieve_real_experiences()
     all_ns, all_r = torch.tensor(all_samples['next_obs']), torch.tensor(all_samples['rews'])
     
-    # 将真实经验和虚拟经验拼接成向量
-    # real_exp = torch.cat((all_s, torch.nn.functional.one_hot(all_a, num_classes=action_space_size), all_ns), dim=1)
-    # fake_exp = torch.cat((expand_b_s, one_hot_actions, b_ns_prime), dim=1)
-    
-    # 计算虚拟经验与真实经验的距离并找到最匹配的真实经验
-    # distances = torch.cdist(fake_exp, real_exp)
     distances = torch.cdist(b_ns_prime, all_ns)
     min_indices = torch.argmin(distances, dim=1)
     min_distances = distances[torch.arange(distances.size(0)), min_indices]
     k = int(len(min_distances) * distance_ratio)
 
-
-    # 筛选出距离小于阈值的虚拟经验
     _, sorted_indices = torch.sort(min_distances)
     close_matches = sorted_indices[:k]
     valid_min_indices = min_indices[close_matches]
@@ -131,11 +120,9 @@ def counterfactual_exp_expand(replay_buffer, sta, batch_size, action_space_size,
     valid_fake_r = all_r[valid_min_indices].numpy()
     valid_fake_a = one_hot_cf_actions[close_matches].argmax(dim=1).numpy()
     valid_fake_ns = b_ns_prime[close_matches].numpy()
-    # 虚拟经验的其他标记
     b_d_prime = np.zeros_like(valid_fake_r)
-    # 更新经验池
     for s, a, r, ns, d in zip(valid_fake_s, valid_fake_a, valid_fake_r, valid_fake_ns, b_d_prime):
-        replay_buffer.store(s, a, r, ns, d, 1, 0)  # 最后两个数字含义：虚拟经验，未被反事实抽样
+        replay_buffer.store(s, a, r, ns, d, 1, 0)
     return replay_buffer
 
 

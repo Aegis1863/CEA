@@ -11,12 +11,12 @@ import time
 from utils.segment_tree import SumSegmentTree, MinSegmentTree
 
 def read_ckp(ckp_path: str, agent: object, model_name: str, buffer_size: int = 0):
-    """读取已有数据, 如果报错, 可以先删除存档"""
+    """Read existing data. If an error occurs, delete the checkpoint first."""
     path = "/".join(ckp_path.split('/')[:-1])
-    if not os.path.exists(path):  # 检查路径在不在
+    if not os.path.exists(path):
         os.makedirs(path)
-    if os.path.exists(ckp_path):  # 检查文件在不在
-        print('\n\033[34m[ checkpoint ]\033[0m 读取已有模型权重和训练数据...')
+    if os.path.exists(ckp_path):
+        print('\n\033[34m[ checkpoint ]\033[0m Read existing model weights and training data...')
         checkpoint = torch.load(ckp_path)
         s_epoch = checkpoint["epoch"]
         s_episode = checkpoint["episode"]
@@ -25,7 +25,7 @@ def read_ckp(ckp_path: str, agent: object, model_name: str, buffer_size: int = 0
         if 'DQN' in model_name:
             agent.q_net.load_state_dict(checkpoint["best_weight"])
         elif 'PPO' in model_name or 'DDPG' in model_name:
-            assert not buffer_size, 'PPO 没有经验池!'
+            assert not buffer_size, 'PPO do not have exp pool!'
             agent.actor.load_state_dict(checkpoint["actor_best_weight"])
             agent.critic.load_state_dict(checkpoint["critic_best_weight"])
         elif 'SAC' in model_name or 'TD3' in model_name or 'CEA' in model_name:
@@ -42,24 +42,24 @@ def read_ckp(ckp_path: str, agent: object, model_name: str, buffer_size: int = 0
             return s_epoch, s_episode, return_list, time_list, seed_list, replay_buffer
         return s_epoch, s_episode, return_list, time_list, seed_list
     else:
-        print('\n\033[34m[ checkpoint ]\033[0m 无存档')
+        print('\n\033[34m[ checkpoint ]\033[0m No checkpoint')
         if buffer_size:
             return 0, 0, [], [], [], ReplayBuffer(buffer_size)
         return 0, 0, [], [], []
 
 
 def save_plot_data(return_list, time_list, seed_list, ckpt_path, seed, pool_list=None):
-    system_type = sys.platform  # 操作系统标识
+    system_type = sys.platform
     # ckpt/SAC/big-intersection_42_win32.pt
     mission_name = ckpt_path.split('/')[1]
-    alg_name = ckpt_path.split('/')[2]  # 在本项目路径命名中，第二个是算法名
+    alg_name = ckpt_path.split('/')[2]  # In this project path naming, the second is the algorithm name
     # data/plot_data/highway/SAC/
     file_path = f"data/plot_data/{mission_name}/{alg_name}"
-    if not os.path.exists(file_path):  # 路径不存在时创建
+    if not os.path.exists(file_path):
         os.makedirs(file_path)
     log_path = f"{file_path}/{seed}_{system_type}.csv"
     return_save = pd.DataFrame()
-    return_save["Algorithm"] = [alg_name] * len(return_list)  # 算法名称
+    return_save["Algorithm"] = [alg_name] * len(return_list)
     return_save["Seed"] = seed_list
     return_save["Return"] = return_list
     if pool_list:
@@ -84,8 +84,8 @@ class ReplayBuffer:
         self.rewards_buf = np.zeros([size], dtype=np.float32)
         self.dones_buf = np.zeros(size, dtype=np.float32)
         self.truncated_buf = np.zeros(size, dtype=np.float32)
-        self.exp_type_buf = np.zeros(size, dtype=np.float32)  # 虚拟经验是 1，真实经验是 0
-        # 没被抽的是 0 , cf_spd: counterfactual_sampled
+        self.exp_type_buf = np.zeros(size, dtype=np.float32)  # Generated experience is 1, real experience is 0
+        # 0 for unsampled exp , cf_spd: counterfactual_sampled
         self.cf_spd_buf = np.zeros(size, dtype=np.float32)
         self.max_size, self.batch_size = size, batch_size
         self.ptr, self.size, = 0, 0
@@ -133,7 +133,7 @@ class ReplayBuffer:
         )
 
     def retrieve_real_experiences(self) -> Dict[str, np.ndarray]:
-        """采样真实经验，即exp_type值为0的"""
+        """Sampling real experience"""
         assert len(self) > 0
 
         indices = np.where(self.exp_type_buf == 0)[0][:self.size-1]
@@ -155,7 +155,7 @@ class ReplayBuffer:
         )
 
     def sample_new_real_exp(self, batch_size):
-        '''采样未经反事实推断的真实经验，即exp_type和spd_buf值同时为0的'''
+        '''Sample real experience without counterfactual inference, that is, when both exp_type and spd_buf are 0'''
         assert len(self) > 0
         indices = np.where((self.exp_type_buf == 0) & (self.cf_spd_buf == 0))[0][:self.size-1]
         if len(indices) >= batch_size:
@@ -326,22 +326,21 @@ def train_SAC_agent(
     num_new_samples: int=0,
     threshold_ratio: int=0.4,
 ):
-    '''支持SAC, CEA, TD3'''
+    '''For SAC, CEA, TD3'''
     pool_list = []
     start_time = time.time()
-    best_score = -1e10  # 初始分数
+    best_score = -1e10  # init score
     total_step = 0
     return_list = [] if not return_list else return_list
     flag = True
-    for epoch in range(s_epoch, total_epochs):  # 实际上没用，一般只设定 1 个epoch
+    for epoch in range(s_epoch, total_epochs):  #  1 epoch usually
         for episode in range(s_episode, total_episodes):
             episode_return = 0
             ep_start_time = time.time()
-            state, done, truncated = env.reset()[0], False, False  # 这里不给env seed避免对单个种子过拟合
-            # 执行单轮仿真
+            state, done, truncated = env.reset()[0], False, False
             while not (done | truncated):
                 action = agent.take_action(state) if replay_buffer.size > minimal_size else env.action_space.sample()
-                action = np.array(action).reshape(-1)  # 检查action类型
+                action = np.array(action).reshape(-1)
                 next_state, reward, done, truncated, info = env.step(action)
                 total_step += 1
                 next_state = next_state.reshape(-1)
@@ -349,13 +348,13 @@ def train_SAC_agent(
                 replay_buffer.store(*transition)
                 state = next_state
                 episode_return += float(reward)
-                if replay_buffer.size > minimal_size:  # 确保先收集到一定量的数据再采样
+                if replay_buffer.size > minimal_size:
                     if flag:
-                        print('[ 开始抽样训练 ]')
+                        print('[ Start sample to train ]')
                         flag = False
                     transition_dict = replay_buffer.sample_batch()
                     combined_loss = agent.update(transition_dict)
-                    # * 执行 CEA
+                    # * CEA
                     if sta and total_step % (4 * replay_buffer.batch_size) == 0 and replay_buffer.size < replay_buffer.capacity:
                         replay_buffer = counterfactual_exp_expand(replay_buffer, sta,
                                                                 replay_buffer.batch_size, env,
@@ -364,19 +363,19 @@ def train_SAC_agent(
                         loss_for_prior = combined_loss.numpy()
                         new_priorities = loss_for_prior + 1e-6
                         replay_buffer.update_priorities(transition_dict['indices'], new_priorities)
-            # 记录数据
+            # save data
             return_list.append(episode_return)
             time_list.append(time.strftime('%m-%d %H:%M:%S', time.localtime()))
             seed_list.append(seed)
             pool_list.append(replay_buffer.size)
 
-            if episode_return > best_score:  # 保存最佳分数
+            if episode_return > best_score:  # save best score
                 actor_best_weight = agent.actor.state_dict()
                 critic_1_best_weight = agent.critic_1.state_dict()
                 critic_2_best_weight = agent.critic_2.state_dict()
                 best_score = episode_return
                 best_weight = [actor_best_weight, critic_1_best_weight, critic_2_best_weight]
-            if writer > 0:  # 存档
+            if writer > 0:  # save checkpoint
                 save_SAC_data(writer, replay_buffer, return_list, pool_list, time_list, seed_list, 
                               ckpt_path, epoch, episode, best_weight, agent, seed)
             
@@ -387,15 +386,14 @@ def train_SAC_agent(
         s_episode = 0
     env.close()
     
-    # agrnt存档
+    # agent load best weights
     if not flag:
         agent.actor.load_state_dict(actor_best_weight)
         agent.critic_1.load_state_dict(critic_1_best_weight)
         agent.critic_2.load_state_dict(critic_2_best_weight)
     
-    # 打印总时间
     total_time = (time.time() - start_time) // 60
-    print("\033[32m[ 总耗时 ]\033[0m %d分钟" % total_time)
+    print("\033[32m[ Total time ]\033[0m %d分钟" % total_time)
     
     return return_list, total_time
 
@@ -403,7 +401,6 @@ def train_SAC_agent(
 def save_SAC_data(writer, replay_buffer, return_list, pool_list, time_list,
                   seed_list, ckpt_path, epoch, episode, weight, agent, seed):
     actor_best_weight, critic_1_best_weight, critic_2_best_weight = weight
-    # 训练权重存档
     torch.save(
         {
             "epoch": epoch,
@@ -420,7 +417,6 @@ def save_SAC_data(writer, replay_buffer, return_list, pool_list, time_list,
         },
         ckpt_path,
     )
-    # 绘图数据存档
     save_plot_data(return_list, time_list, seed_list,
                     ckpt_path, seed, pool_list)
 
@@ -446,19 +442,18 @@ def train_DDPG_agent(
     num_new_samples: int=0,
     threshold_ratio: int=0.4,
 ):
-    '''支持DDPG'''
+    '''For DDPG'''
     pool_list = []
     start_time = time.time()
-    best_score = -1e10  # 初始分数
+    best_score = -1e10
     total_step = 0
     return_list = [] if not return_list else return_list
     flag = True
-    for epoch in range(s_epoch, total_epochs):  # 实际上没用，一般只设定 1 个 epoch
+    for epoch in range(s_epoch, total_epochs):
         for episode in range(s_episode, total_episodes):
             episode_return = 0
             ep_start_time = time.time()
-            state, done, truncated = env.reset()[0], False, False  # 这里不给env seed避免对单个种子过拟合
-            # 执行单轮仿真
+            state, done, truncated = env.reset()[0], False, False
             while not (done | truncated):
                 action = agent.take_action(state) if replay_buffer.size > minimal_size else env.action_space.sample()
                 action = np.array(action).reshape(-1)
@@ -469,34 +464,34 @@ def train_DDPG_agent(
                 replay_buffer.store(*transition)
                 state = next_state
                 episode_return += reward
-                if replay_buffer.size > minimal_size:  # 确保先收集到一定量的数据再采样
+                if replay_buffer.size > minimal_size:
                     if flag:
-                        print('[ 开始抽样训练 ]')
+                        print('[ Start sample to train ]')
                         flag = False
                     transition_dict = replay_buffer.sample_batch()
                     combined_loss = agent.update(transition_dict)
-                    # 执行PER
+                    # PER
                     if per:
                         loss_for_prior = combined_loss.numpy()
                         new_priorities = loss_for_prior + 1e-6
                         replay_buffer.update_priorities(transition_dict['indices'], new_priorities)
-            # * 执行 CEA
-            if sta and episode % 20 == 0 and replay_buffer.size < replay_buffer.capacity: # replay_buffer.size < minimal_size:
+            # * CEA
+            if sta and episode % 20 == 0 and replay_buffer.size < replay_buffer.capacity:
                 replay_buffer = counterfactual_exp_expand(replay_buffer, sta,
                                                         replay_buffer.batch_size, env,
                                                         num_new_samples, threshold_ratio)
-            # 记录数据
+
             return_list.append(episode_return)
             time_list.append(time.strftime('%m-%d %H:%M:%S', time.localtime()))
             seed_list.append(seed)
             pool_list.append(replay_buffer.size)
 
-            if episode_return > best_score:  # 保存最佳分数
+            if episode_return > best_score:
                 actor_best_weight = agent.actor.state_dict()
                 critic_best_weight = agent.critic.state_dict()
                 best_score = episode_return
                 best_weight = [actor_best_weight, critic_best_weight]
-            if writer > 0:  # 存档
+            if writer > 0:
                 save_DDPG_data(writer, replay_buffer, return_list, pool_list, time_list, seed_list, 
                               ckpt_path, epoch, episode, best_weight, agent, seed)
             
@@ -506,19 +501,18 @@ def train_DDPG_agent(
                       % (seed, episode+1, total_episodes, episode_time, np.mean(return_list[-10:]), replay_buffer.size))
         s_episode = 0
     env.close()
-    # agrnt存档
+
     if not flag:
         agent.actor.load_state_dict(actor_best_weight)
         agent.critic.load_state_dict(critic_best_weight)
-    # 打印总时间
+
     total_time = (time.time() - start_time) // 60
-    print("\033[32m[ 总耗时 ]\033[0m %d分钟" % total_time)
+    print("\033[32m[ Total time ]\033[0m %d分钟" % total_time)
     return return_list, total_time
 
 def save_DDPG_data(writer, replay_buffer, return_list, pool_list, time_list,
                   seed_list, ckpt_path, epoch, episode, weight, agent, seed):
     actor_best_weight, critic_best_weight = weight
-    # 训练权重存档
     torch.save(
         {
             "epoch": epoch,
@@ -534,7 +528,6 @@ def save_DDPG_data(writer, replay_buffer, return_list, pool_list, time_list,
         },
         ckpt_path,
     )
-    # 绘图数据存档
     save_plot_data(return_list, time_list, seed_list,
                     ckpt_path, seed, pool_list)
 
@@ -544,7 +537,7 @@ def compute_advantage(gamma, lmbda, td_delta):
     td_delta = td_delta.detach().numpy()
     advantage_list = []
     advantage = 0.0
-    for delta in td_delta[::-1]:  # 逆向折算
+    for delta in td_delta[::-1]:
         advantage = gamma * lmbda * advantage + delta
         advantage_list.append(advantage)
     advantage_list.reverse()
@@ -567,10 +560,10 @@ def train_PPO_agent(
     ckpt_path: str,
 ):
     """
-    同策略, 没有经验池, 仅限演员评论员框架
+    For PPO
     """
     start_time = time.time()
-    best_score = -1e10  # 初始分数
+    best_score = -1e10
     return_list = [] if not return_list else return_list
     flag = True
     for epoch in range(s_epoch, total_epochs):
@@ -589,7 +582,7 @@ def train_PPO_agent(
             state, done, truncated = env.reset()[0], False, False
             while not (done | truncated):
                 action = agent.take_action(state)
-                action = np.array(action.cpu()) if not isinstance(action, np.ndarray) else action  # 检查action类型
+                action = np.array(action.cpu()) if not isinstance(action, np.ndarray) else action
                 next_state, reward, done, truncated, info = env.step(action)
                 transition_dict["states"].append(state)
                 transition_dict["actions"].append(action)
@@ -599,11 +592,11 @@ def train_PPO_agent(
                 transition_dict["truncated"].append(truncated)
                 state = next_state
                 episode_return += reward
-            # 记录
+                
             return_list.append(episode_return)
             time_list.append(time.strftime('%m-%d %H:%M:%S', time.localtime()))
             seed_list.append(seed)
-            agent.update(transition_dict)  # 更新参数
+            agent.update(transition_dict)
 
             if episode_return > best_score:
                 actor_best_weight = agent.actor.state_dict()
@@ -611,11 +604,10 @@ def train_PPO_agent(
                 best_score = episode_return
                 best_weight = [actor_best_weight, critic_best_weight]
 
-            # 存档
-            if writer > 0:  # 存档
+            if writer > 0:
                 save_PPO_data(writer, return_list, time_list, seed_list, 
                             ckpt_path, epoch, episode, best_weight, agent, seed)
-            # 记录时间
+
             if episode % 10 == 0:
                 duration_time = (time.time() - ep_start_time) / 6
                 print('\033[32m[ %d, <%d/%d>, %.2f min ]\033[0m: return: %d'
@@ -627,16 +619,14 @@ def train_PPO_agent(
         agent.actor.load_state_dict(actor_best_weight)
         agent.critic.load_state_dict(critic_best_weight)
     total_time = time.time() - start_time
-    print(f"\033[32m[ 总耗时 ]\033[0m {(total_time / 60):.2f}分钟")
-    # 如果检查点保存了回报列表, 可以不返回return_list
+    print(f"\033[32m[ Total time ]\033[0m {(total_time / 60):.2f}分钟")
+    
     return return_list, total_time // 60
 
 
 def save_PPO_data(writer, return_list, time_list, seed_list, 
                   ckpt_path, epoch, episode, weight, agent, seed):
-    # wandb 存档
     actor_best_weight, critic_best_weight = weight
-    # 训练权重存档
     torch.save(
         {
             "epoch": epoch,
@@ -650,5 +640,4 @@ def save_PPO_data(writer, return_list, time_list, seed_list,
         },
         ckpt_path,
     )
-    # 绘图数据存档
     save_plot_data(return_list, time_list, seed_list, ckpt_path, seed)

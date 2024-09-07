@@ -22,9 +22,8 @@ class PolicyNet(torch.nn.Module):
         
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        # 这里直接缩放并输出, 而非像PPO中输出均值方差再采样
         action = torch.tanh(self.fc2(x))
-        action = self.low + (action + 1.0) * (self.high - self.low) / 2  # 放缩到指定空间
+        action = self.low + (action + 1.0) * (self.high - self.low) / 2  # Zoom to the specified space
         return action
 
 
@@ -42,7 +41,7 @@ class QValueNet(torch.nn.Module):
         return self.fc_out(x)
 
 class DDPG:
-    ''' DDPG算法 '''
+    ''' DDPG '''
     def __init__(self, state_dim, hidden_dim, action_dim,sigma, actor_lr, 
                  critic_lr, tau, gamma, device, training=True):
         self.training = training
@@ -50,15 +49,13 @@ class DDPG:
         self.critic = QValueNet(state_dim, hidden_dim, action_dim).to(device)
         self.target_actor = PolicyNet(state_dim, hidden_dim, action_dim).to(device)
         self.target_critic = QValueNet(state_dim, hidden_dim, action_dim).to(device)
-        # 初始化目标价值网络并设置和价值网络相同的参数
         self.target_critic.load_state_dict(self.critic.state_dict())
-        # 初始化目标策略网络并设置和策略相同的参数
         self.target_actor.load_state_dict(self.actor.state_dict())
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
         self.gamma = gamma
-        self.sigma = sigma  # 高斯噪声的标准差, 均值直接设为0
-        self.tau = tau  # 目标网络软更新参数
+        self.sigma = sigma
+        self.tau = tau
         self.action_dim = action_dim
         self.device = device
 
@@ -67,14 +64,13 @@ class DDPG:
         state = state.to(the_device) if the_device else state.to(self.device)
         action = self.actor(state).detach().cpu()
         if self.training:
-            # 给动作添加噪声，增加探索, 但是验证和测试时不需要
             action = action + self.sigma * np.random.randn(self.action_dim)
         return action
 
     def soft_update(self, net, target_net):
-        '''将target_net往net方向软更新, 每次更新幅度都很小
+        '''Soft update target_net in the direction of net, each update is very small
 
-        参数说明
+        Params
         ----------
         net : torch.nn.module
         target_net : torch.nn.module
@@ -91,13 +87,10 @@ class DDPG:
         truncated = torch.tensor(transition_dict['truncated'], dtype=torch.int).view(-1, 1).to(self.device)
         weights = torch.FloatTensor(transition_dict["weights"].reshape(-1, 1)).to(self.device)
 
-        # 评论员还是时序差分更新, 评论员现在叫Q网络, 但是和之前价值网络一样
-        # 不同点是需要输入状态和动作, 动作由演员选择, DQN里面的Q网络不需要输入动作
         next_q_values = self.target_critic(next_states, self.target_actor(next_states))
         q_targets = rewards + self.gamma * next_q_values * (1 - dones | truncated)
         critic_losses = F.mse_loss(self.critic(states, actions), q_targets.detach(), reduction='none')
         critic_loss = torch.mean(critic_losses * weights)
-        # 评论员梯度下降
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
@@ -105,30 +98,30 @@ class DDPG:
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
-        self.soft_update(self.actor, self.target_actor)  # 软更新策略网络
-        self.soft_update(self.critic, self.target_critic)  # 软更新价值网络
+        self.soft_update(self.actor, self.target_actor)
+        self.soft_update(self.critic, self.target_critic)
         
         return critic_losses.detach().cpu()
     
 # * --------------------- 参数 -------------------------
 if __name__ == '__main__':
     
-    parser = argparse.ArgumentParser(description='DDPG 任务')
-    parser.add_argument('--model_name', default="DDPG", type=str, help='基本算法名称')
-    parser.add_argument('-t', '--task', default="lunar", type=str, help='任务名称')
-    parser.add_argument('-w', '--writer', default=0, type=int, help='存档等级, 0: 不存，1: 本地')
-    parser.add_argument('--sta', action="store_true", help='是否利用sta辅助')
-    parser.add_argument('--per', action="store_true", help='是否采用PER')
-    parser.add_argument('-d', '--distance_ratio', default=0.2, type=float, help='虚拟经验比例')
-    parser.add_argument('-n', '--num_new_samples', default=3, type=int, help='反事实动作采样个数')
-    parser.add_argument('-e', '--episodes', default=300, type=int, help='运行回合数')
-    parser.add_argument('-s', '--seed', nargs='+', default=[1, 7], type=int, help='起始种子')
+    parser = argparse.ArgumentParser(description='DDPG task')
+    parser.add_argument('--model_name', default="DDPG", type=str, help='Alg name')
+    parser.add_argument('-t', '--task', default="lunar", type=str, help='Task name')
+    parser.add_argument('-w', '--writer', default=0, type=int, help='Saving type, 0: No，1: local')
+    parser.add_argument('--sta', action="store_true", help='Whether to use STA')
+    parser.add_argument('--per', action="store_true", help='Whether to use PER')
+    parser.add_argument('-d', '--distance_ratio', default=0.2, type=float, help='Generate experience ratio')
+    parser.add_argument('-n', '--num_new_samples', default=3, type=int, help='The number of counterfactual actions sampled')
+    parser.add_argument('-e', '--episodes', default=300, type=int, help='episodes')
+    parser.add_argument('-s', '--seed', nargs='+', default=[1, 7], type=int, help='Start and end seeds')
 
     args = parser.parse_args()
     
-    # 环境相关
+    # env
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    # 连续动作空间环境基准测试
+    # Continuous Action Space Environment Benchmark
     if args.task == 'pendulum':
         env = gym.make('Pendulum-v1')
     elif args.task == 'lunar':
@@ -143,22 +136,22 @@ if __name__ == '__main__':
     buffer_size = int(5e4)
     minimal_size = buffer_size // 10
     gamma = 0.98
-    sigma = 0.01  # 高斯噪声标准差
-    tau = 0.005  # 软更新参数, tau越小更新幅度越小
+    sigma = 0.01
+    tau = 0.005
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     if (abs(env.action_space.high) != abs(env.action_space.low)).any():
-        print('WARNING: 动作空间不对称')
-    # 动作空间范围
+        print('WARNING: Action space asymmetry')
+    # action bound
     low = torch.tensor(env.action_space.low, device=device)
     high = torch.tensor(env.action_space.high, device=device)
     
-    # 任务相关
+    # task
     total_epochs = 1
     batch_size = 128
-    system_type = sys.platform  # 操作系统
+    system_type = sys.platform
 
-    # CEA 参数
+    # CEA params
     if args.sta:
         path = f'model/sta/{args.task}/regular.pt'
         sta = torch.load(path, map_location=device)
@@ -171,7 +164,7 @@ if __name__ == '__main__':
             args.model_name = f'{args.model_name}_PER'
         sta = False
     
-    print(f'[ 开始训练, 任务: {args.task}, 模型: {args.model_name}, 设备: {device} ]')
+    print(f'[ Start training, task: {args.task}, alg: {args.model_name}, device: {device} ]')
     # * ----------------------- 训练 ----------------------------
     for seed in trange(args.seed[0], args.seed[-1] + 1, mininterval=40, ncols=100):
         CKP_PATH = f'ckpt/{args.task}/{args.model_name}/{seed}_{system_type}.pt'
