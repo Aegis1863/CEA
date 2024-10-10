@@ -16,6 +16,5 @@ data/
 log/
 test/
 image/
-model/
 data_to_image.py
 policy_demo.py
