@@ -7,6 +7,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Train_STA task')
 parser.add_argument('-t', '--task', default="lunar", type=str, help='task name')
+parser.add_argument('-m', '--model', default="DDPG", type=str, help='model name')
 parser.add_argument('-l', '--lr', default=1e-4, type=float, help='learning rate')
 parser.add_argument('-e', '--epochs', default=150, type=int, help='training epochs')
 parser.add_argument('-b', '--batch_size', default=128, type=int, help='batch size')
@@ -30,15 +31,15 @@ if action_type == 'continuous':
         action_scope = (float(env.action_space.low), float(env.action_space.high))
 else:
     action_scope = None
-    
+
 # ==========
 # init
 diff_state = []
 actions = []
 
 # sequential read and concatenate
-for i in os.listdir(f'ckpt/{args.task}/DDPG/'):
-    file_name = f'ckpt/{args.task}/DDPG/{i}'
+for i in os.listdir(f'ckpt/{args.task}/{args.model}/'):
+    file_name = f'ckpt/{args.task}/{args.model}/{i}'
     buffer = torch.load(file_name)['replay_buffer']
     diff_s = buffer.next_states_buf - buffer.states_buf
     diff_state.append(diff_s)
@@ -61,11 +62,11 @@ quality = []
 loss_list = []
 print(f'[ Start STA training, Task: {args.task}, Epochs: {args.epochs}, Batch_size: {args.batch_size} ]')
 for epoch in trange(args.epochs, ncols=70):
-    loss = cvae_train(model, device, diff_states, actions, optimizer, False, 
+    loss = cvae_train(model, device, diff_states, actions, optimizer, False,
                       args.batch_size, action_type, action_scope)
     loss_list.append(loss)
     quality.append(model.generate_test(32, action_scope, fig_path, action_type))
-    
+
 print(f'\n==> Generate silhouette score: {[round(i, 3) for i in quality]}')
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
