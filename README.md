@@ -16,17 +16,21 @@ python 3.8, torch, numpy, pandas, seaborn, tqdm, gymnasium, scikit-learn
 
 Continuous control:
 
-`python .\DDPG.py -w 0 --sta --per -t pendulum`
+`python .\DDPG.py -w 1 --sta --per -t pendulum`
 
-`python .\DDPG.py -w 0 --sta --per -t lunar`
+`python .\DDPG.py -w 1 --sta --per -t lunar`
 
 Discrete Control:
 
-`python .\RDQN.py -w 0 --sta --sta_kind regular -t sumo`
+`python .\RDQN.py -w 1 --sta --sta_kind regular -t sumo`
 
-`python .\RDQN.py -w 0 --sta --sta_kind regular -t highway`
+`python .\RDQN.py -w 1 --sta --sta_kind regular -t highway`
 
-then data will be in `data\plot_data\pendulum\CEA_DDPG\1_linux.csv`
+* terminal parameters:
+  * -w: 1 for save data, 0 for test and do not save data;
+  * -t task: pendulum, lunar; sumo highway;
+
+Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 
 # Parameter setting
 
