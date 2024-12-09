@@ -34,7 +34,7 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 
 # Parameter setting
 
-## Rainbow DQN algorithm parameter settings
+## Rainbow DQN parameter settings
 
 | **Parameter** | **Value** | **Description**                           |
 | ------------------- | --------------- | ----------------------------------------------- |
@@ -49,7 +49,7 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 | batch_size          | 128             | Batch size for updates                          |
 | target_update       | 100             | Period for target model's hard update           |
 
-## SAC-discrete algorithm parameter settings
+## SAC-discrete parameter settings
 
 | **Parameter** | **Value** | **Description**                             |
 | ------------------- | --------------- | ------------------------------------------------- |
@@ -66,7 +66,7 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 | minimal_size        | 500             | Minimum size of the replay buffer before updating |
 | batch_size          | 64              | Batch size for updates                            |
 
-## CEA algorithm parameter settings
+## CEA parameter settings
 
 | **Parameter** | **Value** | **Description**                 |
 | ------------------- | --------------- | ------------------------------------- |
@@ -75,7 +75,7 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 | target_update       | 100             | Period for target model's hard update |
 | threshold_ratio     | 0.1             | Threshold ratio for choosing CTP      |
 
-## PPO algorithm parameter settings
+## PPO parameter settings
 
 | **Parameter** | **Value** | **Description**                                               |
 | ------------------- | --------------- | ------------------------------------------------------------------- |
@@ -87,7 +87,7 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 | eps                 | 0.2             | Clipping range parameter for the PPO objective (1 - eps to 1 + eps) |
 | epochs              | 10              | Number of epochs per training sequence in PPO                       |
 
-## MBPO (SAC-discrete) algorithm parameter settings
+## MBPO (SAC-discrete) parameter settings
 
 | **Parameter** | **Value** | **Description**                       |
 | ------------------- | --------------- | ------------------------------------------- |
@@ -103,3 +103,17 @@ Then data will be in `data\plot_data\{task}\{model_name}\{...}.csv`.
 | model_alpha         | 0.01            | Weighting factor in the model loss function |
 | rollout_batch_size  | 1000            | Batch size for rollouts                     |
 | rollout_length      | 1               | Length of the model rollouts                |
+
+# DDPG parameter settings
+
+| Parameter    | Value | Description                          |
+| ------------ | ----- | ------------------------------------ |
+| actor_lr     | 2e-4  | Learning rate of actor network       |
+| critic_lr    | 2e-4  | Learning rate of critic network      |
+| hidden_dim   | 128   | Dimension of hidden layers           |
+| buffer_size  | 5e4   | Size of replay buffer                |
+| minimal_size | 5e3   | Minimum sample size                  |
+| gamma        | 0.98  | Discount factor                      |
+| sigma        | 0.01  | Standard deviation of Gaussian noise |
+| tau          | 0.005 | Soft update parameter                |
+| batch_size   | 128   | Batch size for training              |
