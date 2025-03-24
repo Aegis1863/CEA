@@ -2,8 +2,6 @@
 
 Code of ***[Counterfactual Experience Augmented Off-policy Reinforcement Learning](https://doi.org/10.1016/j.neucom.2025.130017).*** The paper has been accepted by Neurocomputing.
 
-The code files have not been fully organized and are only for temporary reference. A clearer structure and instructions will be updated later.
-
 **Counterfactual experience augmentation** method refers to `utils/CEA.py`.
 
 The **maximum entropy sampling** method can be referenced in a separate repository: https://github.com/Aegis1863/HdGkde
